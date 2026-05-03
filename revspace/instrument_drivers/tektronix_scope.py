@@ -19,4 +19,4 @@ def obtain_scope_address(serial_number):
         if serial_number in resource_address:
             print(f"Device with serial number {serial_number} was found with address '{resource_address}'.")
             return resource_address
-    raise LookupError(f"Tektronix TDS 2024C with serial number {serial_number} was not found!")
+    raise ValueError(f"Tektronix TDS 2024C with serial number {serial_number} was not found!")
