@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "revspace"
+version = "0.0.1"
+description = "Package library containing code written to support projects/instruments within RevSpace."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+
+authors = [
+    { name = "Marios Samiotis", email = "msamiotis@proton.me" }
+]
+
+maintainers = [
+    { name = "Marios Samiotis", email = "msamiotis@proton.me" }
+]
+
+keywords = [
+    "revspace",
+    "makerspace",
+    "hackerspace",
+    "instrument-drivers"
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "pyvisa"
+]
+
+[project.urls]
+Homepage = "https://github.com/msamiotis/revspace"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["revspace*"]
