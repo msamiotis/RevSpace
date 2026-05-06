@@ -20,3 +20,15 @@ def obtain_scope_address(serial_number):
             print(f"Device with serial number {serial_number} was found with address '{resource_address}'.")
             return resource_address
     raise ValueError(f"Tektronix TDS 2024C with serial number {serial_number} was not found!")
+
+def connect_to_scope(scope_address: int):
+
+    rm = pyvisa.ResourceManager()
+    scope = rm.open_resource(scope_address)
+
+    scope.timeout = 10000  # 10 s (Tektronix instruments often need longer)
+    scope.write("*RST")
+    scope.write("*CLS")
+    print('Successfully connected:', scope.query("*IDN?").strip())
+
+    return scope
