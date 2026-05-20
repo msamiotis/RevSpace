@@ -1,6 +1,8 @@
 import pyvisa
 import numpy as np
 from typing import Literal
+import time
+import matplotlib.pyplot as plt
 
 SERIAL_NUMBER = 'C047327'
 
@@ -51,6 +53,9 @@ class Scope:
         self.ch_position_max = 10 # in units of [div]
         self.ch_position_min = -10 # in units of [div]
         self.ch_position_step = 0.04 # in units of [div]
+        self.trigger_lvl_min = -8 # in units of [V]
+        self.trigger_lvl_max = 8 # in units of [V]
+        self.trigger_lvl_step = 40e-3 # in units of [V]
 
         self.active_config = {'channels': {},
                               'global': {'horizontal scale [s/div]': 1e-6}}
@@ -181,3 +186,71 @@ class Scope:
                 raise ValueError(f"Invalid invert input. Valid input options are: ['ON', 'OFF'].")
             self.com.write(f"{channel}:INVert {invert}")
             self.active_config['channels'][channel]['invert'] = invert
+
+    def single_measurement(self,
+                           channel: Literal['CH1', 'CH2', 'CH3', 'CH4'],
+                           trigger_level: float):
+
+        if channel not in ['CH1', 'CH2', 'CH3', 'CH4']:
+            raise ValueError("Invalid input channel; valid inputs are: 'CH1', 'CH2', 'CH3', 'CH4'.")
+        trigger_lvl_valid_inputs = np.round(np.arange(self.trigger_lvl_min,
+                                             self.trigger_lvl_max+self.trigger_lvl_step,
+                                             self.trigger_lvl_step), 2)
+        if trigger_level not in trigger_lvl_valid_inputs:
+            raise ValueError("Invalid trigger level input. Valid input options are within "
+                            f"[{self.trigger_lvl_min} V, {self.trigger_lvl_max} V] with step size {self.trigger_lvl_step} V.")
+
+        # Binary encoding for fast transfer
+        self.com.write("DAT:ENC RIB")
+        self.com.write("DAT:WID 2")      # 16-bit samples
+        self.com.write(f"DAT:SOU {channel}")
+
+        # Trigger
+        self.com.write("TRIG:MAI:TYP EDGE")
+        self.com.write(f"TRIG:MAI:EDGE:SOU {channel}")
+        self.com.write(f"TRIG:MAI:LEV {trigger_level}")
+        self.com.write("TRIG:MAI:EDGE:SLO RISE")
+
+        # Single acquisition
+        self.com.write("ACQ:MODE SAM")
+        self.com.write("ACQ:STOPA SEQ")
+        self.com.write("ACQ:STATE RUN") # same as pressing "RUN" in front panel
+
+        # Wait for trigger
+        start = time.time()
+        while time.time() - start < 30:
+            if self.com.query("ACQ:STATE?").strip() == "0":
+                break
+            time.sleep(0.1)
+
+        wfmp = self.com.query("WFMP?").split(";")
+        x_scale = float(wfmp[8])
+        y_scale = float(wfmp[12])
+        y_zero = float(wfmp[13])
+        y_offset  = float(wfmp[14])
+
+        raw_voltage_data = np.array(self.com.query_binary_values("CURV?", datatype="h", is_big_endian=True))
+        scaled_voltage_data = (raw_voltage_data - y_offset) * y_scale + y_zero
+        times = np.arange(len(raw_voltage_data)) * x_scale
+        times -= 5 * self.active_config['global']['horizontal scale [s/div]']
+
+        fig, ax = plt.subplots(dpi=100)
+        ax.scatter(times,
+                   scaled_voltage_data,
+                   color = 'C0',
+                   alpha = 0.6,
+                   label = 'Data',
+                   marker = 'o')
+        ax.axhline(0.0, color='black', linewidth = 1, linestyle = '--')
+        ax.axvline(0.0, color='black', linewidth = 1, linestyle = '--')
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Voltage (V)')
+        ax.set_ylim(-4.5 * self.active_config['channels']['CH1']['scale [V]'],
+                    4.5 * self.active_config['channels']['CH1']['scale [V]'])
+        ax.legend()
+        ax.grid()
+
+        self.com.write("ACQ:STOPA RUNST") # sets it back to RUN/STOP mode
+        self.com.write("ACQ:STATE RUN")
+
+        return {'time [s]': times, 'voltage [V]': scaled_voltage_data}
